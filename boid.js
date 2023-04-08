@@ -1,16 +1,16 @@
 // Default flocking parameters
 const EXPLORING = {
-    sep: 100,       // Separation Radius
-    neigh: 250,     // Neighbor (attraction) radius
-    align: 300,     // Alignment radius
-    comms: 300,     // Communication radius
-    maxspeed: 3.0,  // Maximum speed
+    sep: 50,       // Separation Radius
+    neigh: 100,     // Neighbor (attraction) radius
+    align: 70,     // Alignment radius
+    comms: 80,     // Communication radius
+    maxspeed: 1.5,  // Maximum speed
     color: "#000"   // Colour highlight
 }
 // Combing a patch of mines
 const COMBING = {
-    sep: 10,
-    neigh: 250,
+    sep: 30,
+    neigh: 150,
     align: 100,
     comms: 300,
     maxspeed: 2.0,
@@ -48,7 +48,22 @@ class Boid{
             velocity: other.velocity.copy(),
             position: other.position.copy(),
             hue: other.hue,
-            staleness: 0
+            staleness: 0,
+            hops: 0
+        }
+
+        // Save their knowledge
+        for(let k in other.K){
+            // Only if we don't already have it, or if ours is staler
+            if(!(k == this.id) && (other.K[k].hops == 0) && (!(k in this.K) || ( this.K[k].staleness > other.K[k].staleness))){
+                this.K[k] = {
+                    velocity: other.K[k].velocity.copy(),
+                    position: other.K[k].position.copy(),
+                    hue: other.K[k].hue,
+                    staleness: other.K[k].staleness,
+                    hops: other.K[k].hops + 1 
+                }
+            }
         }
 
         // Update their position once (accounts for "transmission delay")
@@ -62,8 +77,8 @@ class Boid{
     }
 
     // Manage the agent's knowledge store
-    updateKnowledgeNaive(){
-        for(let k in this.K){
+    updateKnowledgeNaive(boids){
+        for(const k in this.K){
             // Decay all keys and remove expired ones
             if(this.K[k].staleness++ > STALE){
                 delete this.K[k]
@@ -96,21 +111,17 @@ class Boid{
     // Perform all flocking calculations 
     flock(){
         this.updateKnowledgeNaive()
-        let boids = Object.values(this.K)
 
-        let sep = this.separate(boids);   // Separation
-        let ali = this.align(boids);      // Alignment
-        let coh = this.cohesion(boids);   // Cohesion
+        let sep = this.separate(this.K);   // Separation
+        let ali = this.align(this.K);      // Alignment
+        let coh = this.cohesion(this.K);   // Cohesion
         let wal = this.walls();           // Walls
 
         // Weight these forces
-        sep.mult(1.5);
+        sep.mult(1.0);
         ali.mult(1.0);
         coh.mult(1.0);
         wal.mult(3.0);
-
-        // Cache forces to display later
-        if(this.id == 0) this.lastForces = {sep, ali, coh, wal}
 
         // Add the force vectors to acceleration
         this.applyForce(sep);
@@ -118,18 +129,22 @@ class Boid{
         this.applyForce(coh);
         this.applyForce(wal);
 
-        if(this.since_detect && this.since_detect < 20){
-            let goto = this.seek(this.detect_pos);
-            sep.mult(0.5);
-            this.applyForce(goto)
+        let goto = createVector(0,0)
+        if(this.since_detect){
+            goto = this.seek(this.detect_pos);
+            goto.mult(1.5);
+            // this.applyForce(goto)
         }
+
+        // Cache forces to display later
+        if(this.id == 0) this.lastForces = {sep, ali, coh, wal, goto}
     }
 
     // Use stored acceleration from this.flock to update position
     update(){
         // Update velocity
         this.velocity.add(this.acceleration);
-        this.velocity.limit(this.maxspeed);
+        this.velocity.limit(this.params.maxspeed);
         this.position.add(this.velocity);
 
         // Reset acceleration to 0 each cycle
@@ -182,6 +197,8 @@ class Boid{
             line(0,0,this.lastForces.coh.x,this.lastForces.coh.y)
             stroke("#000")
             line(0,0,this.lastForces.wal.x,this.lastForces.wal.y)
+            stroke("#fff")
+            line(0,0,this.lastForces.goto.x,this.lastForces.goto.y)
             pop()
 
             // Draw circles showing force area
@@ -212,7 +229,7 @@ class Boid{
 
         // Draw percieved world
         if(this.render_forces){
-            for(let i in this.K){
+            for(const i in this.K){
                 let b = this.K[i]
                 push()
                 translate(b.position.x, b.position.y)
@@ -220,7 +237,7 @@ class Boid{
                 let theta = b.velocity.heading() + radians(90);
                 rotate(theta);
                 noStroke()
-                fill(b.hue, 0.6, 255, 1- (b.staleness / STALE));
+                fill(b.hue, 0.6, 255, 1- (b.staleness / STALE)*0.6);
                 beginShape();
                 let r = boids[i].r;
                 vertex(0, -r * 2);
@@ -276,7 +293,7 @@ class Boid{
         let steer = createVector(0, 0);
         let count = 0;
         // For every boid in the system, check if it's too close
-        for (let i = 0; i < boids.length; i++) {
+        for (const i in boids) {
             let d = p5.Vector.dist(this.position,boids[i].position);
             // If the distance is greater than 0 and less than an arbitrary amount (0 when you are yourself)
             if ((d > 0) && (d < this.params.sep)) {
@@ -302,7 +319,7 @@ class Boid{
         let neighbordist = this.params.align;
         let sum = createVector(0,0);
         let count = 0;
-        for (let i = 0; i < boids.length; i++) {
+        for (const i in boids) {
           let d = p5.Vector.dist(this.position,boids[i].position);
           if ((d > 0) && (d < neighbordist)) {
             sum.add(boids[i].velocity);
@@ -326,7 +343,7 @@ class Boid{
         let neighbordist = this.params.neigh;
         let sum = createVector(0, 0);   // Start with empty vector to accumulate all locations
         let count = 0;
-        for (let i = 0; i < boids.length; i++) {
+        for (const i in boids) {
           let d = p5.Vector.dist(this.position,boids[i].position);
           if ((d > 0) && (d < neighbordist)) {
             sum.add(boids[i].position); // Add location

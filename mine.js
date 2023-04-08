@@ -11,8 +11,8 @@ class Mine{
 }
 
 class MineField{
-    PATCH_SIZE = 100
-    PER_PATCH = 20
+    PATCH_SIZE = 120
+    PER_PATCH = 60
     MINE_SIZE = 6
     MARGIN = 200
 
@@ -23,7 +23,7 @@ class MineField{
         this.patches = []
         this.found = 0
         if(!num_patches) num_patches = 6
-        for(let i=0; i<num_patches; i++){
+        for(let i=0; i<=num_patches; i++){
             let x = (width - this.PATCH_SIZE*2 - this.MARGIN*2)/num_patches * i
             let y = (height - this.PATCH_SIZE*2 - this.MARGIN*2) * Math.random()
             this.generatePatch(x + this.PATCH_SIZE + this.MARGIN, y + this.PATCH_SIZE + this.MARGIN)
