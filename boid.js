@@ -21,7 +21,7 @@ class Boid{
     constructor(x,y) {
         // Initialize position, acceleration and velocity vectors
         this.acceleration = createVector(0, 0);
-        this.velocity = createVector(random(-1, 1), random(-1, 1));
+        this.velocity = p5.Vector.random2D();
         this.position = createVector(x, y);
 
         this.r = 4.0;               // Boid's size
@@ -41,7 +41,7 @@ class Boid{
     // Takes referece to another boid and infers message content
     receive(other){
         // Discard message if outside communication zone
-        if (p5.Vector.dist(this.position, other.position) > other.params.comms) return
+        if (p5.Vector.sub(this.position, other.position).magSq() > other.params.comms*other.params.comms) return
         
         // Save agent's velocity, position & colour
         this.K[other.id] = {
@@ -272,8 +272,8 @@ class Boid{
     wall_force(val, limit){
         let d0 = val;
         let dw = limit - val;
-        if (d0 < this.params.comms)      return  abs(this.params.comms - d0)/this.params.comms * this.maxforce;
-        else if (dw < this.params.comms) return -abs(this.params.comms - dw)/this.params.comms * this.maxforce;
+        if (d0 < this.params.comms)      return  Math.abs(this.params.comms - d0)/this.params.comms * this.maxforce;
+        else if (dw < this.params.comms) return -Math.abs(this.params.comms - dw)/this.params.comms * this.maxforce;
         else return 0
     }
     
